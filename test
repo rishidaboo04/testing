@@ -1,7 +1,5 @@
-pip install haystack-ai
-pip install "sentence-transformers>=3.0.0"
-pip install pypdf
-
+import streamlit as st
+from pathlib import Path
 from haystack.telemetry import tutorial_running
 from haystack.components.writers import DocumentWriter
 from haystack.components.converters import PyPDFToDocument
@@ -11,46 +9,58 @@ from haystack.components.joiners import DocumentJoiner
 from haystack.components.embedders import SentenceTransformersDocumentEmbedder
 from haystack import Pipeline
 from haystack.document_stores.in_memory import InMemoryDocumentStore
-from pathlib import Path
-
-input_dir = "recipe_files"  # Update this folder name if needed
-
-# Initialize document store and other pipeline components
-document_store = InMemoryDocumentStore()
-file_type_router = FileTypeRouter(mime_types=["application/pdf"])
-pdf_converter = PyPDFToDocument()
-document_joiner = DocumentJoiner()
-document_cleaner = DocumentCleaner()
-document_splitter = DocumentSplitter(split_by="word", split_length=150, split_overlap=50)
-document_embedder = SentenceTransformersDocumentEmbedder(model="sentence-transformers/all-MiniLM-L6-v2")
-document_writer = DocumentWriter(document_store)
-
-# Create the indexing pipeline
-preprocessing_pipeline = Pipeline()
-preprocessing_pipeline.add_component(instance=file_type_router, name="file_type_router")
-preprocessing_pipeline.add_component(instance=pdf_converter, name="pypdf_converter")
-preprocessing_pipeline.add_component(instance=document_joiner, name="document_joiner")
-preprocessing_pipeline.add_component(instance=document_cleaner, name="document_cleaner")
-preprocessing_pipeline.add_component(instance=document_splitter, name="document_splitter")
-preprocessing_pipeline.add_component(instance=document_embedder, name="document_embedder")
-preprocessing_pipeline.add_component(instance=document_writer, name="document_writer")
-
-# Connect pipeline components
-preprocessing_pipeline.connect("file_type_router.application/pdf", "pypdf_converter.sources")
-preprocessing_pipeline.connect("pypdf_converter", "document_joiner")
-preprocessing_pipeline.connect("document_joiner", "document_cleaner")
-preprocessing_pipeline.connect("document_cleaner", "document_splitter")
-preprocessing_pipeline.connect("document_splitter", "document_embedder")
-preprocessing_pipeline.connect("document_embedder", "document_writer")
-
-# Run the pipeline on local files
-preprocessing_pipeline.run({"file_type_router": {"sources": list(Path(input_dir).glob("**/*"))}})
-
 from haystack.components.embedders import SentenceTransformersTextEmbedder
 from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
 from haystack.components.builders import PromptBuilder
 from haystack.components.generators import HuggingFaceAPIGenerator
+from haystack.utils import Secret
 
+# Streamlit app title
+st.title("Job Profile's Indexing and Querying")
+
+input_dir = "pdf_files"  # Update this folder name if needed
+
+# Indexing function that runs only once
+@st.cache_resource
+def get_document_store():
+    # Initialize document store
+    document_store = InMemoryDocumentStore()
+    # Initialize pipeline components
+    file_type_router = FileTypeRouter(mime_types=["application/pdf"])
+    pdf_converter = PyPDFToDocument()
+    document_joiner = DocumentJoiner()
+    document_cleaner = DocumentCleaner()
+    document_splitter = DocumentSplitter(split_by="word", split_length=150, split_overlap=50)
+    document_embedder = SentenceTransformersDocumentEmbedder(model="sentence-transformers/all-MiniLM-L6-v2")
+    document_writer = DocumentWriter(document_store)
+    
+    # Create the indexing pipeline
+    preprocessing_pipeline = Pipeline()
+    preprocessing_pipeline.add_component(instance=file_type_router, name="file_type_router")
+    preprocessing_pipeline.add_component(instance=pdf_converter, name="pypdf_converter")
+    preprocessing_pipeline.add_component(instance=document_joiner, name="document_joiner")
+    preprocessing_pipeline.add_component(instance=document_cleaner, name="document_cleaner")
+    preprocessing_pipeline.add_component(instance=document_splitter, name="document_splitter")
+    preprocessing_pipeline.add_component(instance=document_embedder, name="document_embedder")
+    preprocessing_pipeline.add_component(instance=document_writer, name="document_writer")
+    # Connect pipeline components
+    preprocessing_pipeline.connect("file_type_router.application/pdf", "pypdf_converter.sources")
+    preprocessing_pipeline.connect("pypdf_converter", "document_joiner")
+    preprocessing_pipeline.connect("document_joiner", "document_cleaner")
+    preprocessing_pipeline.connect("document_cleaner", "document_splitter")
+    preprocessing_pipeline.connect("document_splitter", "document_embedder")
+    preprocessing_pipeline.connect("document_embedder", "document_writer")
+    
+    # Run the indexing pipeline
+    preprocessing_pipeline.run({"file_type_router": {"sources": list(Path(input_dir).glob("**/*.pdf"))}})
+    return document_store
+
+# Only display the spinner and success message temporarily
+with st.spinner('Indexing documents...'):
+    document_store = get_document_store()
+st.empty()  # Clear the spinner once indexing completes
+
+# Define the prompt template
 template = """
 Answer the questions based on the given context.
 
@@ -63,37 +73,49 @@ Question: {{ question }}
 Answer:
 """
 
-from haystack.components.generators import HuggingFaceAPIGenerator
+# Initialize the query pipeline
+@st.cache_resource
+def get_query_pipeline():
+    generator = HuggingFaceAPIGenerator(api_type="serverless_inference_api",
+                                        api_params={"model": "HuggingFaceH4/zephyr-7b-beta"},
+                                        token=Secret.from_token("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"))
 
-# Retrieve the token from environment variables
+    pipe = Pipeline()
+    pipe.add_component("embedder", SentenceTransformersTextEmbedder(model="sentence-transformers/all-MiniLM-L6-v2"))
+    pipe.add_component("retriever", InMemoryEmbeddingRetriever(document_store=document_store))
+    pipe.add_component("prompt_builder", PromptBuilder(template=template))
+    pipe.add_component("llm", generator)
+    
+    pipe.connect("embedder.embedding", "retriever.query_embedding")
+    pipe.connect("retriever", "prompt_builder.documents")
+    pipe.connect("prompt_builder", "llm")
+    return pipe
 
-# Initialize the generator using the token
-generator = HuggingFaceLocalGenerator(model="google/flan-t5-large",
-                                      task="text2text-generation",
-                                      generation_kwargs={
-                                          "max_new_tokens": 500,
-                                          "temperature": 0.9,
-                                      })
-pipe = Pipeline()
-pipe.add_component("embedder", SentenceTransformersTextEmbedder(model="sentence-transformers/all-MiniLM-L6-v2"))
-pipe.add_component("retriever", InMemoryEmbeddingRetriever(document_store=document_store))
-pipe.add_component("prompt_builder", PromptBuilder(template=template))
-pipe.add_component(
-    "llm", generator
-)
+pipe = get_query_pipeline()
 
-pipe.connect("embedder.embedding", "retriever.query_embedding")
-pipe.connect("retriever", "prompt_builder.documents")
-pipe.connect("prompt_builder", "llm")
+# Streamlit input and output using a form for the question input and "Enter" button
+with st.form(key="question_form"):
+    question = st.text_input("Enter your question:")
+    submit_button = st.form_submit_button("Enter")
 
-question = (
-    "Explain the study results for simulating many accelerated strongly interacting hadrons?"
-)
+if submit_button and question.strip():
+    with st.spinner('Generating response...'):
+        # Run the pipeline with the user's question
+        response = pipe.run(
+            {
+                "embedder": {"text": question},
+                "prompt_builder": {"question": question},
+                "llm": {"generation_kwargs": {"max_new_tokens": 350}},
+            }
+        )
 
-pipe.run(
-    {
-        "embedder": {"text": question},
-        "prompt_builder": {"question": question},
-        "llm": {"generation_kwargs": {"max_new_tokens": 350}},
-    }
-)
+        # Display the response
+        st.write("**Response:**")
+        st.write(response["llm"]["replies"][0])
+
+        # Optionally display the sources used
+        with st.expander("See retrieved documents"):
+            for idx, doc in enumerate(response.get("documents", [])):
+                st.write(f"**Document {idx + 1}:** {doc.meta.get('name', 'Unknown')}")
+                st.write(doc.content)
+                st.write("---")
