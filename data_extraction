@@ -38,37 +38,36 @@ job_purpose = extract_section_from_pdf(pdf_path, "Job Purpose:", stop_keywords=[
 key_accountabilities = extract_section_from_pdf(pdf_path, "Key Accountabilities:", stop_keywords=["Key Responsibilities"])
 key_responsibilities = extract_section_from_pdf(pdf_path, "Key Responsibilities:", stop_keywords=["Skills", "Qualifications"])
 
-# Print sections with formatted output
+# Prepare output content
 output = add_space_between_sections(job_purpose, key_accountabilities, key_responsibilities)
-print(output)
-print("\n")
 
 # Use camelot to read tables from the PDF
 tables = camelot.read_pdf(pdf_path, pages='all')
 
+# Prepare the output text
+output_text = output + "\n\n"
+
 # ------------------------FIRST TABLE------------------------------
 if len(tables) > 0:
     df_first = tables[0].df
-    print("First Table:")
     for i in range(len(df_first)):
         col_0 = df_first.iloc[i, 0].replace('\n', ' ') if df_first.iloc[i, 0] else ''
         col_1 = df_first.iloc[i, 1].replace('\n', ' ') if df_first.iloc[i, 1] else ''
 
         if col_0 and col_1:
-            print(f"{col_0} {col_1}")
+            output_text += f"{col_0} {col_1}\n"
 
         if len(df_first.columns) > 2:
             col_2 = df_first.iloc[i, 2].replace('\n', ' ') if df_first.iloc[i, 2] else ''
             col_3 = df_first.iloc[i, 3].replace('\n', ' ') if df_first.iloc[i, 3] else ''
             if col_2 and col_3:
-                print(f"{col_2} {col_3}")
+                output_text += f"{col_2} {col_3}\n"
 
 # ------------------------MIDDLE TABLES------------------------------
 middle_tables = tables[1:-1] if len(tables) > 2 else []
 
 for idx, table in enumerate(middle_tables, start=1):
     df_middle = table.df
-    print(f"Middle Table {idx}:")
     for i in range(1, len(df_middle)):  # Skip the header row
         criterion = df_middle.iloc[i, 0] if len(df_middle.columns) > 0 else None
         essential = df_middle.iloc[i, 1] if len(df_middle.columns) > 1 else None
@@ -79,26 +78,25 @@ for idx, table in enumerate(middle_tables, start=1):
         desirable = desirable.replace('\n', ' ') if desirable else None
 
         if criterion:
-            print(f"{criterion.lstrip('-').strip()}:")
+            output_text += f"{criterion.lstrip('-').strip()}:\n"
             
             if essential:
                 essential_points = essential.split('●')
-                print("  - Essential:")
+                output_text += "  - Essential:\n"
                 for point in essential_points:
                     if point.strip():
-                        print(f"    - {point.strip()}")
+                        output_text += f"    - {point.strip()}\n"
             
             if desirable:
                 desirable_points = desirable.split('●')
-                print("  - Desirable:")
+                output_text += "  - Desirable:\n"
                 for point in desirable_points:
                     if point.strip():
-                        print(f"    - {point.strip()}")
+                        output_text += f"    - {point.strip()}\n"
 
 # ---------------------LAST TABLE-------------------------------
 if len(tables) > 1:
     df_last = tables[-1].df
-    print("Last Table:")
     for i in range(len(df_last)):
         if len(df_last.columns) > 1:
             col_0 = df_last.iloc[i, 0].replace('\n', ' ').strip() if pd.notna(df_last.iloc[i, 0]) else None
@@ -107,7 +105,7 @@ if len(tables) > 1:
             if col_0 and col_1:
                 col_1 = col_1.lstrip('●').strip()
                 col_0 = col_0.rstrip(':')
-                print(f"{col_0}: {col_1}")
+                output_text += f"{col_0}: {col_1}\n"
 
         if len(df_last.columns) > 3:
             col_2 = df_last.iloc[i, 2].replace('\n', ' ').strip() if pd.notna(df_last.iloc[i, 2]) else None
@@ -116,5 +114,10 @@ if len(tables) > 1:
             if col_2 and col_3:
                 col_3 = col_3.lstrip('●').strip()
                 col_2 = col_2.rstrip(':')
-                print(f"{col_2}: {col_3}")
+                output_text += f"{col_2}: {col_3}\n"
 
+# Write to a text file
+with open("output.txt", "w") as file:
+    file.write(output_text)
+
+print("Output saved to output.txt")
