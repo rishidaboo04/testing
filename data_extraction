@@ -1,123 +1,90 @@
 import camelot
 import pandas as pd
-
 import pdfplumber
 
 def extract_section_from_pdf(pdf_path, title, stop_keywords=None):
     with pdfplumber.open(pdf_path) as pdf:
         full_text = ""
-        
-        # Extract text from all pages
         for page in pdf.pages:
             full_text += page.extract_text()
-    
-    # If the title isn't found, return None
+
     start_index = full_text.find(title)
     if start_index == -1:
         return None
-    
-    # Extract the section after the title
+
     section_text = full_text[start_index:]
-    
-    # Stop when we find the next section or end of the document
     stop_keywords = stop_keywords or []
     next_section_start = len(section_text)
-    
-    # Search for the next section titles (stop keywords) and get the minimum index
+
     for keyword in stop_keywords:
         stop_index = section_text.find(keyword)
         if stop_index != -1 and stop_index < next_section_start:
             next_section_start = stop_index
-    
-    # Cut the text to only include the desired section
-    section_text = section_text[:next_section_start].strip()
 
-    return section_text
+    return section_text[:next_section_start].strip()
 
-# Paths to PDF
-pdf_path = 'Test_Job_Profile.pdf'
-
-# Extract "Job Purpose"
-job_purpose = extract_section_from_pdf(pdf_path, "Job Purpose:", stop_keywords=["Key Accountabilities", "Key Responsibilities"])
-
-# Extract "Key Accountabilities"
-key_accountabilities = extract_section_from_pdf(pdf_path, "Key Accountabilities:", stop_keywords=["Key Responsibilities"])
-
-# Extract "Key Responsibilities"
-key_responsibilities = extract_section_from_pdf(pdf_path, "Key Responsibilities:", stop_keywords=["Skills", "Qualifications"])
-
-# Function to replace bullet points with dashes
 def replace_bullets_with_dashes(text):
-    return text.replace('●', '-')  # Replace bullet points with dash
+    return text.replace('●', '-')
 
-# Add spaces between sections and replace bullet points with dashes
 def add_space_between_sections(*sections):
     sections_with_dashes = [replace_bullets_with_dashes(section if section else "Not Found") for section in sections]
     return "\n\n".join(sections_with_dashes)
 
-# Print the results with space between them and bullets replaced with dashes
+# Paths to PDF
+pdf_path = 'Test_Job_Profile.pdf'
+
+# Extract sections
+job_purpose = extract_section_from_pdf(pdf_path, "Job Purpose:", stop_keywords=["Key Accountabilities", "Key Responsibilities"])
+key_accountabilities = extract_section_from_pdf(pdf_path, "Key Accountabilities:", stop_keywords=["Key Responsibilities"])
+key_responsibilities = extract_section_from_pdf(pdf_path, "Key Responsibilities:", stop_keywords=["Skills", "Qualifications"])
+
+# Print sections with formatted output
 output = add_space_between_sections(job_purpose, key_accountabilities, key_responsibilities)
 print(output)
 print("\n")
 
-# Specify the path to your PDF file
-pdf_path = 'Test_Job_Profile.pdf'
-
 # Use camelot to read tables from the PDF
-tables = camelot.read_pdf(pdf_path, pages='all')  # 'all' specifies all pages
-
-# Display the number of tables extracted
-# print(f"Number of tables extracted: {len(tables)}")
+tables = camelot.read_pdf(pdf_path, pages='all')
 
 # ------------------------FIRST TABLE------------------------------
-df = tables[0].df
+df_first = tables[0].df
 
-# Iterate through the rows and print Column 0 paired with Column 1 and Column 2 paired with Column 3
-for i in range(len(df)):
-    # Clean up multiline text in columns by replacing '\n' with a space
-    col_0 = df.iloc[i, 0].replace('\n', ' ') if df.iloc[i, 0] else ''
-    col_1 = df.iloc[i, 1].replace('\n', ' ') if df.iloc[i, 1] else ''
-    
-    # Print Column 0 paired with Column 1 (without the dash)
+for i in range(len(df_first)):
+    col_0 = df_first.iloc[i, 0].replace('\n', ' ') if df_first.iloc[i, 0] else ''
+    col_1 = df_first.iloc[i, 1].replace('\n', ' ') if df_first.iloc[i, 1] else ''
+
     if col_0 and col_1:
         print(f"{col_0} {col_1}")
-    
-    # Print Column 2 paired with Column 3 (if the columns exist)
-    if len(df.columns) > 2:
-        col_2 = df.iloc[i, 2].replace('\n', ' ') if df.iloc[i, 2] else ''
-        col_3 = df.iloc[i, 3].replace('\n', ' ') if df.iloc[i, 3] else ''
+
+    if len(df_first.columns) > 2:
+        col_2 = df_first.iloc[i, 2].replace('\n', ' ') if df_first.iloc[i, 2] else ''
+        col_3 = df_first.iloc[i, 3].replace('\n', ' ') if df_first.iloc[i, 3] else ''
         if col_2 and col_3:
             print(f"{col_2} {col_3}")
 
 # -----------------------SECOND/THIRD TABLE-------------------------------
-# Define a function to check if two DataFrames have similar headers
+df_second = tables[1].df
+df_third = tables[2].df
+
 def have_similar_headers(df1, df2):
     return df1.columns.equals(df2.columns)
 
-# Extract the tables
-df2 = tables[1].df
-df3 = tables[2].df
-
-# Check if the headers of df2 and df3 are similar before combining
-if have_similar_headers(df2, df3):
-    combined_df = pd.concat([df2, df3], ignore_index=True)
+if have_similar_headers(df_second, df_third):
+    combined_df = pd.concat([df_second, df_third], ignore_index=True)
     print("Tables 2 and 3 combined.")
 else:
     print("Headers do not match; tables will not be combined.")
-    combined_df = df2  # Proceed with just df2
+    combined_df = df_second
 
-# Iterate through the rows of the combined DataFrame
-for i in range(1, len(combined_df)):  # Starting from row 1 to skip header row
+for i in range(1, len(combined_df)):
     criterion = combined_df.iloc[i, 0] if len(combined_df.columns) > 0 else None
     essential = combined_df.iloc[i, 1] if len(combined_df.columns) > 1 else None
     desirable = combined_df.iloc[i, 2] if len(combined_df.columns) > 2 else None
 
-    # Clean up newline characters
     criterion = criterion.replace('\n', ' ') if criterion else None
     essential = essential.replace('\n', ' ') if essential else None
     desirable = desirable.replace('\n', ' ') if desirable else None
 
-    # Print the data in bullet-point format
     if criterion:
         print(f"{criterion.lstrip('-').strip()}:")
         
@@ -135,29 +102,24 @@ for i in range(1, len(combined_df)):  # Starting from row 1 to skip header row
                 if point.strip():
                     print(f"    - {point.strip()}")
 
-# ---------------------LAST TABLE (No Bullet Points or Extra Colons)-------------------------------
+# ---------------------LAST TABLE-------------------------------
+df_last = tables[3].df if len(tables) > 3 else df_third
 
-# Safeguard for the last table (df4)
-df4 = tables[3].df if len(tables) > 3 else df3  # Use Table 3 if Table 4 doesn't exist
-
-# Iterate through the rows and pair columns
-for i in range(len(df4)):
-    # Pair Column 0 with Column 1 (if both exist)
-    if len(df4.columns) > 1:
-        col_0 = df4.iloc[i, 0].replace('\n', ' ').strip() if pd.notna(df4.iloc[i, 0]) else None
-        col_1 = df4.iloc[i, 1].replace('\n', ' ').strip() if pd.notna(df4.iloc[i, 1]) else None
+for i in range(len(df_last)):
+    if len(df_last.columns) > 1:
+        col_0 = df_last.iloc[i, 0].replace('\n', ' ').strip() if pd.notna(df_last.iloc[i, 0]) else None
+        col_1 = df_last.iloc[i, 1].replace('\n', ' ').strip() if pd.notna(df_last.iloc[i, 1]) else None
         
         if col_0 and col_1:
-            col_1 = col_1.lstrip('●').strip()  # Remove any bullet points
-            col_0 = col_0.rstrip(':')  # Remove trailing colon if exists
+            col_1 = col_1.lstrip('●').strip()
+            col_0 = col_0.rstrip(':')
             print(f"{col_0}: {col_1}")
 
-    # Pair Column 2 with Column 3 (if both exist)
-    if len(df4.columns) > 3:
-        col_2 = df4.iloc[i, 2].replace('\n', ' ').strip() if pd.notna(df4.iloc[i, 2]) else None
-        col_3 = df4.iloc[i, 3].replace('\n', ' ').strip() if pd.notna(df4.iloc[i, 3]) else None
+    if len(df_last.columns) > 3:
+        col_2 = df_last.iloc[i, 2].replace('\n', ' ').strip() if pd.notna(df_last.iloc[i, 2]) else None
+        col_3 = df_last.iloc[i, 3].replace('\n', ' ').strip() if pd.notna(df_last.iloc[i, 3]) else None
         
         if col_2 and col_3:
-            col_3 = col_3.lstrip('●').strip()  # Remove any bullet points
-            col_2 = col_2.rstrip(':')  # Remove trailing colon if exists
+            col_3 = col_3.lstrip('●').strip()
+            col_2 = col_2.rstrip(':')
             print(f"{col_2}: {col_3}")
