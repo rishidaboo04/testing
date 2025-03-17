@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Knowledge Assistant - Chat</title>
+    <style>
+      :root {
+        --primary: #4d4d4f; /* Medium grey */
+        --primary-light: #6c6c6e; /* Lighter grey */
+        --primary-dark: #3a3a3c; /* Darker grey */
+        --accent: #c9600a; /* ChatGPT's green accent */
+        --accent-light: #c9600a; /* Lighter green */
+        --background: #2b2b2d; /* Dark grey background */
+        --card-bg: #3b3b3d; /* Slightly lighter grey */
+        --card-bg-secondary: #4a4a4c; /* Another grey for variation */
+        --text-primary: #e8e8e8; /* Off-white for readability */
+        --text-secondary: #b3b3b3; /* Lighter grey for secondary text */
+        --border: #555557; /* Subtle grey border */
+        --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3),
+          0 4px 6px -4px rgba(0, 0, 0, 0.2);
+        --radius: 16px;
+        --btn-radius: 12px;
+        --transition: all 0.3s ease;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 
+                 Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        background-color: var(--background);
+        color: var(--text-primary);
+        line-height: 1.6;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        padding: 2rem;
+      }
+
+      .app-container {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 4rem);
+        max-width: 1200px;
+        margin: 0 auto;
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+      }
+
+      .main-container {
+        flex: 1;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        padding: 1rem;
+        padding-top: 1.5rem;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .chat-container {
+        flex: 1;
+        overflow-y: auto;
+        padding: 2rem 1rem;
+        scrollbar-width: thin;
+        scrollbar-color: var(--primary) var(--background);
+        margin-bottom: 1rem;
+      }
+
+      .chat-container::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      .chat-container::-webkit-scrollbar-track {
+        background: var(--background);
+      }
+
+      .chat-container::-webkit-scrollbar-thumb {
+        background-color: var(--primary);
+        border-radius: 20px;
+      }
+
+      .welcome-message {
+        text-align: center;
+        padding: 4rem 2rem;
+        color: var(--text-secondary);
+        max-width: 500px;
+        margin: 0 auto;
+        background-color: transparent;
+        border-radius: var(--radius);
+        box-shadow: none;
+        border: none;
+      }
+
+      .welcome-message h2 {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin-bottom: 1.5rem;
+        color: var(--text-primary);
+      }
+
+      .welcome-message p {
+        margin-bottom: 1.5rem;
+        line-height: 1.7;
+      }
+
+      .answer-container {
+        padding: 1.75rem;
+        background-color: var(--card-bg);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        margin-bottom: 2rem;
+        animation: fadeIn 0.4s ease;
+        border: 1px solid var(--border);
+      }
+
+      .answer-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .assistant-avatar {
+        display: none;
+      }
+
+      .answer-content {
+        line-height: 1.8;
+        color: var(--text-primary);
+        padding-bottom: 1.5rem;
+      }
+
+      .execution-info {
+        margin-top: 1rem;
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        text-align: right;
+        padding-top: 1rem;
+        border-top: 1px solid var (--border);
+      }
+
+      .documents-section {
+        margin-top: 1.5rem;
+      }
+
+      .documents-header {
+        background-color: var(--card-bg-secondary);
+        padding: 0.75rem 1.5rem; /* Adjust padding to match answer-header height */
+        border-radius: var(--btn-radius);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border: 1px solid var(--border);
+        user-select: none;
+        transition: background-color 0.2s ease;
+        margin-top: 1rem; /* Add spacing from the execution info */
+      }
+
+      .documents-header:hover {
+        background-color: var(--primary-dark);
+      }
+
+      .documents-header h3 {
+        font-size: 0.9rem; /* Match answer-header font size */
+        font-weight: normal; /* Match answer-header font weight */
+        color: var(--text-secondary); /* Match answer-header color */
+        display: flex;
+        align-items: center;
+      }
+
+      .documents-header h3 span {
+        background-color: var(--accent);
+        color: white;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.8rem;
+        margin-left: 0.75rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      .chevron {
+        transition: transform 0.3s ease;
+        color: var(--accent-light);
+        font-size: 0.8rem;
+      }
+
+      .documents-dropdown {
+        max-height: none;
+        overflow: visible;
+        transition: opacity 0.3s ease;
+        opacity: 0;
+        padding: 0 0.5rem;
+        display: none;
+      }
+
+      .documents-dropdown.open {
+        opacity: 1;
+        padding-top: 1rem;
+        display: block;
+      }
+
+      .document-card {
+        background-color: var(--card-bg);
+        border-radius: var(--radius);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        border: 1px solid var(--border);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      .document-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 12px 20px rgba(0, 0, 0, 0.2);
+      }
+
+      .document-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .document-number {
+        background-color: var(--accent);
+        color: white;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-right: 0.75rem;
+        flex-shrink: 0;
+      }
+
+      .document-url {
+        font-size: 0.9rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: var(--accent-light);
+        flex-grow: 1;
+      }
+
+      .document-url a {
+        color: var(--accent-light);
+        text-decoration: none;
+      }
+
+      .document-url a:hover {
+        text-decoration: underline;
+      }
+
+      .document-content {
+        background-color: var(--background);
+        border-radius: var(--btn-radius);
+        padding: 1.25rem;
+        font-size: 0.9rem;
+        color: var(--text-primary);
+        position: relative;
+        line-height: 1.7;
+        border: 1px solid var(--border);
+        max-height: 200px;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: var(--primary) var (--background);
+      }
+
+      .document-content::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      .document-content::-webkit-scrollbar-track {
+        background: var(--background);
+      }
+
+      .document-content::-webkit-scrollbar-thumb {
+        background-color: var(--primary);
+        border-radius: 20px;
+      }
+
+      .question-container {
+        padding: 1.25rem 2rem 2rem 2rem;
+        background-color: transparent;
+        position: sticky;
+        bottom: 0;
+        width: 100%;
+        margin-top: auto;
+      }
+
+      .question-form {
+        display: flex;
+        position: relative;
+        background-color: var(--card-bg-secondary);
+        border-radius: var(--btn-radius);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        overflow: hidden;
+        border: 1px solid var (--border);
+        transition: var(--transition);
+      }
+
+      .question-form:focus-within {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(211, 84, 0, 0.2);
+      }
+
+      textarea {
+        flex: 1;
+        border: none;
+        outline: none;
+        padding: 1rem;
+        resize: none;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 
+                 Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        background-color: transparent;
+        overflow-y: auto;
+        min-height: 45px;
+        max-height: 120px;
+        color: var(--text-primary);  /* This ensures white text */
+        font-size: 1rem;
+      }
+
+      textarea::placeholder {
+        color: var(--text-secondary);
+      }
+
+      button {
+        background-color: var(--accent);
+        color: white;
+        border: none;
+        padding: 0;
+        margin: 0.5rem;
+        cursor: pointer;
+        font-weight: 600;
+        transition: var(--transition);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        width: 32px;
+        height: 32px;
+      }
+
+      button svg {
+        width: 16px;
+        height: 16px;
+      }
+
+      button:hover {
+        background-color: var(--accent-light);
+        transform: translateY(-1px);
+      }
+
+      button:active {
+        transform: translateY(1px);
+      }
+
+      button:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+      }
+
+      .empty-documents {
+        padding: 1.5rem;
+        text-align: center;
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        background-color: var (--card-bg);
+        border-radius: var(--radius);
+        margin-top: 1rem;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(15px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .chevron.up {
+        transform: rotate(180deg);
+      }
+
+      .back-button {
+        position: fixed;
+        top: 1rem;
+        left: 1rem;
+        background-color: var(--card-bg);
+        border: 1px solid var(--border);
+        padding: 0.5rem 1rem;
+        border-radius: var(--btn-radius);
+        color: var(--text-primary);
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.9rem;
+        transition: var(--transition);
+        z-index: 100;
+      }
+
+      .back-button:hover {
+        background-color: var(--card-bg-secondary);
+        transform: translateY(-1px);
+      }
+
+      .document-metadata {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.75rem;
+        padding: 0.5rem;
+        background-color: var(--background);
+        border-radius: var(--btn-radius);
+        border: 1px solid var(--border);
+      }
+
+      .metadata-item {
+        display: inline-block;
+        margin-right: 1rem;
+      }
+
+      .metadata-label {
+        color: var(--accent-light);
+        margin-right: 0.25rem;
+      }
+
+      .preview-header {
+        color: var(--accent-light);
+        font-size: 0.85rem;
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--border);
+      }
+    </style>
+  </head>
+  <body>
+
+    <div class="app-container">
+      <div class="main-container">
+        <div class="chat-container" id="chat-container">
+          <div class="welcome-message" id="welcome-message">
+            <h2>RAG-LLM Prototype</h2>
+            <p>
+              Ask any question about your documents, and I'll provide an answer
+              based on the information available.
+            </p>
+            <p>For best results, be specific in your questions.</p>
+          </div>
+          <div id="answer-area"></div>
+        </div>
+      </div>
+
+      <footer class="question-container">
+        <div class="question-form">
+          <textarea
+            id="question"
+            placeholder="Ask your question here..."
+            rows="1"
+          ></textarea>
+          <button id="submit">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              fill="currentColor"
+              viewBox="0 0 256 256"
+            >
+              <path
+                d="M208.49,120.49a12,12,0,0,1-17,0L140,69V216a12,12,0,0,1-24,0V69L64.49,120.49a12,12,0,0,1-17-17l72-72a12,12,0,0,1,17,0l72,72A12,12,0,0,1,208.49,120.49Z"
+              ></path>
+            </svg>
+          </button>
+        </div>
+      </footer>
+    </div>
+
+    <script>
+      const chatContainer = document.getElementById("chat-container");
+      const welcomeMessage = document.getElementById("welcome-message");
+      const answerArea = document.getElementById("answer-area");
+      const submitButton = document.getElementById("submit");
+      const questionInput = document.getElementById("question");
+
+      // Auto-resize textarea
+      questionInput.addEventListener("input", function () {
+        this.style.height = "auto";
+        this.style.height = this.scrollHeight + "px";
+      });
+
+      // Submit question when Enter is pressed (unless Shift is held)
+      questionInput.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          submitButton.click();
+        }
+      });
+
+      // Toggle documents dropdown
+      function toggleDocuments(element) {
+        const dropdown = element.nextElementSibling;
+        const chevron = element.querySelector(".chevron");
+
+        dropdown.classList.toggle("open");
+        chevron.classList.toggle("up");
+      }
+
+      submitButton.addEventListener("click", async () => {
+        const question = questionInput.value.trim();
+        if (!question) return;
+
+        try {
+          // Hide welcome message if it's the first question
+          if (welcomeMessage.style.display !== "none") {
+            welcomeMessage.style.display = "none";
+          }
+
+          // Create a temporary answer container with loading state
+          const tempAnswerContainer = document.createElement("div");
+          tempAnswerContainer.className = "answer-container";
+          tempAnswerContainer.innerHTML = `
+                    <div class="answer-header">
+                        <div>AI Response</div>
+                    </div>
+                `;
+          answerArea.appendChild(tempAnswerContainer);
+
+          // Scroll to bottom
+          chatContainer.scrollTop = chatContainer.scrollHeight;
+
+          // Disable the button and show processing state
+          submitButton.disabled = true;
+          submitButton.innerHTML =
+            '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256"><path d="M208.49,120.49a12,12,0,0,1-17,0L140,69V216a12,12,0,0,1-24,0V69L64.49,120.49a12,12,0,0,1-17-17l72-72a12,12,0,0,1,17,0l72,72A12,12,0,0,1,208.49,120.49Z"></path></svg>';
+
+          // Make API request
+          const result = await fetch("/ask", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ question }),
+          });
+
+          const data = await result.json();
+
+          // Create documents dropdown section
+          let documentsSection = "";
+          if (data.retrieved_documents && data.retrieved_documents.length > 0) {
+            let documentsContent = "";
+
+            data.retrieved_documents.forEach((doc, index) => {
+              const fileName = doc.meta.file_name || 'Unknown file';
+              const lineNumber = doc.meta.line_number || 'N/A';
+              
+              documentsContent += `
+                  <div class="document-card">
+                      <div class="document-header">
+                          <div class="document-metadata">
+                              <span class="metadata-item">
+                                  <span class="metadata-label">File:</span>
+                                  ${fileName}
+                              </span>
+                              <span class="metadata-item">
+                                  <span class="metadata-label">Line:</span>
+                                  ${lineNumber}
+                              </span>
+                          </div>
+                      </div>
+                      <div class="document-content">
+                          <div class="preview-header">Document Preview:</div>
+                          ${doc.content_preview || "Content preview not available"}
+                      </div>
+                  </div>
+              `;
+          });
+
+            documentsSection = `
+                        <div class="documents-section">
+                            <div class="documents-header" onclick="toggleDocuments(this)">
+                                <h3>Referenced Documents</h3>
+                                <div class="chevron">▼</div>
+                            </div>
+                            <div class="documents-dropdown">
+                                ${documentsContent}
+                            </div>
+                        </div>
+                    `;
+          }
+
+          // Update the temporary answer with actual response
+          tempAnswerContainer.innerHTML = `
+                    <div class="answer-header">
+                        <div>AI Response</div>
+                    </div>
+                    <div class="answer-content">
+                        ${data.answer.replace(/\n/g, "<br>")}
+                    </div>
+                    <div class="execution-info">
+                        Completed in ${data.execution_time.toFixed(2)}s
+                    </div>
+                    ${documentsSection}
+                `;
+
+          // Clear the input and reset its height
+          questionInput.value = "";
+          questionInput.style.height = "auto";
+
+          // Scroll to the bottom to show the new answer
+          chatContainer.scrollTop = chatContainer.scrollHeight;
+        } catch (error) {
+          console.error("Error:", error);
+          // Update the temporary answer with error message
+          const errorContainer = document.querySelector(
+            ".answer-container:last-child"
+          );
+          if (errorContainer) {
+            errorContainer.innerHTML = `
+                        <div class="answer-header">
+                            <div>Error</div>
+                        </div>
+                        <div class="answer-content">
+                            An error occurred while processing your question. Please try again.
+                        </div>
+                    `;
+          }
+        } finally {
+          // Re-enable the button and keep the arrow icon
+          submitButton.disabled = false;
+          submitButton.innerHTML = `
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              fill="currentColor"
+              viewBox="0 0 256 256"
+            >
+              <path
+                d="M208.49,120.49a12,12,0,0,1-17,0L140,69V216a12,12,0,0,1-24,0V69L64.49,120.49a12,12,0,0,1-17-17l72-72a12,12,0,0,1,17,0l72,72A12,12,0,0,1,208.49,120.49Z"
+              ></path>
+            </svg>`;
+        }
+      });
+    </script>
+  </body>
+</html>
