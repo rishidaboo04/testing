@@ -5,7 +5,6 @@ import time
 import sys
 
 from haystack import Pipeline, Document, component, ComponentError
-from haystack.core.pipeline import AsyncPipeline
 from haystack.components.builders import ChatPromptBuilder
 from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
 from haystack.components.generators import HuggingFaceLocalGenerator
@@ -79,7 +78,7 @@ def create_document_store(folder_path: str = "text_files/") -> InMemoryDocumentS
 
 def create_rag_pipeline(document_store: InMemoryDocumentStore) -> tuple:
     """
-    Create an Async RAG Pipeline.
+    Create a RAG Pipeline.
 
     Args:
         document_store (InMemoryDocumentStore): Initialized document store.
@@ -133,8 +132,8 @@ Answer:
         }
     )
 
-    # Build the AsyncPipeline
-    basic_rag_pipeline = AsyncPipeline()
+    # Build the Pipeline (changed from AsyncPipeline)
+    basic_rag_pipeline = Pipeline()
     basic_rag_pipeline.add_component("text_embedder", text_embedder)
     basic_rag_pipeline.add_component("retriever", retriever)
     basic_rag_pipeline.add_component("prompt_builder", prompt_builder)
@@ -148,12 +147,12 @@ Answer:
     return text_embedder, retriever, basic_rag_pipeline
 
 
-async def run_pipeline(pipeline: AsyncPipeline, text_embedder, retriever, question: str):
+def run_pipeline(pipeline: Pipeline, text_embedder, retriever, question: str):
     """
-    Run the RAG pipeline asynchronously and print results.
+    Run the RAG pipeline synchronously and print results.
 
     Args:
-        pipeline (AsyncPipeline): Configured RAG pipeline.
+        pipeline (Pipeline): Configured RAG pipeline.
         text_embedder: Text embedding component
         retriever: Document retriever component
         question (str): Question to be answered.
@@ -168,7 +167,7 @@ async def run_pipeline(pipeline: AsyncPipeline, text_embedder, retriever, questi
     retrieved_docs = retriever_result["documents"]
 
     # Run the full pipeline
-    response = await pipeline.run_async(
+    response = pipeline.run(
         {"text_embedder": {"text": question}, "prompt_builder": {"question": question}}
     )
 
@@ -205,7 +204,7 @@ async def run_pipeline(pipeline: AsyncPipeline, text_embedder, retriever, questi
     print("=" * 80 + "\n")
 
 
-async def interactive_rag_pipeline():
+def interactive_rag_pipeline():
     """
     Interactive RAG pipeline with continuous questioning.
     """
@@ -231,19 +230,19 @@ async def interactive_rag_pipeline():
                 continue
 
             # Run the pipeline for the current question
-            await run_pipeline(basic_rag_pipeline, text_embedder, retriever, question)
+            run_pipeline(basic_rag_pipeline, text_embedder, retriever, question)
 
     except KeyboardInterrupt:
         print("\n\nProgram interrupted. Exiting the RAG pipeline. Goodbye!")
         sys.exit(0)
 
 
-async def main():
+def main():
     """
-    Main async function to run the interactive RAG pipeline.
+    Main function to run the interactive RAG pipeline.
     """
-    await interactive_rag_pipeline()
+    interactive_rag_pipeline()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
